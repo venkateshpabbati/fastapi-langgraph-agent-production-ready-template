@@ -18,21 +18,21 @@ class GraphState(BaseModel):
     messages: Annotated[list, add_messages] = Field(
         default_factory=list, description="The messages in the conversation"
     )
-    thread_id: str = Field(..., description="The unique identifier for the conversation thread")
+    session_id: str = Field(..., description="The unique identifier for the conversation session")
 
-    @field_validator("thread_id")
+    @field_validator("session_id")
     @classmethod
-    def validate_thread_id(cls, v: str) -> str:
-        """Validate that the thread ID is a valid UUID or follows safe pattern.
+    def validate_session_id(cls, v: str) -> str:
+        """Validate that the session ID is a valid UUID or follows safe pattern.
 
         Args:
             v: The thread ID to validate
 
         Returns:
-            str: The validated thread ID
+            str: The validated session ID
 
         Raises:
-            ValueError: If the thread ID is not valid
+            ValueError: If the session ID is not valid
         """
         # Try to validate as UUID
         try:
@@ -41,5 +41,5 @@ class GraphState(BaseModel):
         except ValueError:
             # If not a UUID, check for safe characters only
             if not re.match(r"^[a-zA-Z0-9_\-]+$", v):
-                raise ValueError("Thread ID must contain only alphanumeric characters, underscores, and hyphens")
+                raise ValueError("Session ID must contain only alphanumeric characters, underscores, and hyphens")
             return v
