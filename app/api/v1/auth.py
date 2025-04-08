@@ -22,6 +22,7 @@ from fastapi.security import (
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging import logger
+from app.models.session import Session
 from app.models.user import User
 from app.schemas.auth import (
     SessionResponse,
@@ -47,14 +48,14 @@ db_service = DatabaseService()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> int:
+) -> User:
     """Get the current user ID from the token.
 
     Args:
         credentials: The HTTP authorization credentials containing the JWT token.
 
     Returns:
-        int: The user ID extracted from the token.
+        User: The user extracted from the token.
 
     Raises:
         HTTPException: If the token is invalid or missing.
@@ -83,7 +84,7 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return user.id
+        return user
     except ValueError as ve:
         logger.error("token_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(
@@ -95,14 +96,14 @@ async def get_current_user(
 
 async def get_current_session(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> str:
+) -> Session:
     """Get the current session ID from the token.
 
     Args:
         credentials: The HTTP authorization credentials containing the JWT token.
 
     Returns:
-        str: The session ID extracted from the token.
+        Session: The session extracted from the token.
 
     Raises:
         HTTPException: If the token is invalid or missing.
@@ -133,7 +134,7 @@ async def get_current_session(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return session_id
+        return session
     except ValueError as ve:
         logger.error("token_validation_failed", error=str(ve), exc_info=True)
         raise HTTPException(
@@ -262,14 +263,14 @@ async def create_session(user_id: int = Depends(get_current_user)):
 
 @router.patch("/session/{session_id}/name", response_model=SessionResponse)
 async def update_session_name(
-    session_id: str, name: str = Form(...), current_session: str = Depends(get_current_session)
+    session_id: str, name: str = Form(...), current_session: Session = Depends(get_current_session)
 ):
     """Update a session's name.
 
     Args:
         session_id: The ID of the session to update
         name: The new name for the session
-        current_session: The current session ID from auth
+        current_session: The current session from auth
 
     Returns:
         SessionResponse: The updated session information
@@ -278,7 +279,7 @@ async def update_session_name(
         # Sanitize inputs
         sanitized_session_id = sanitize_string(session_id)
         sanitized_name = sanitize_string(name)
-        sanitized_current_session = sanitize_string(current_session)
+        sanitized_current_session = sanitize_string(current_session.id)
 
         # Verify the session ID matches the authenticated session
         if sanitized_session_id != sanitized_current_session:
