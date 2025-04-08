@@ -20,13 +20,13 @@ from app.core.config import settings
 from app.core.langgraph.graph import LangGraphAgent
 from app.core.limiter import limiter
 from app.core.logging import logger
+from app.models.session import Session
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
     Message,
     StreamResponse,
 )
-from app.services import database_service
 
 router = APIRouter()
 agent = LangGraphAgent()
@@ -37,14 +37,14 @@ agent = LangGraphAgent()
 async def chat(
     request: Request,
     chat_request: ChatRequest,
-    session_id: str = Depends(get_current_session),
+    session: Session = Depends(get_current_session),
 ):
     """Process a chat request using LangGraph.
 
     Args:
         request: The FastAPI request object for rate limiting.
         chat_request: The chat request containing messages.
-        session_id: The current session ID from the auth token.
+        session: The current session from the auth token.
 
     Returns:
         ChatResponse: The processed chat response.
@@ -55,18 +55,18 @@ async def chat(
     try:
         logger.info(
             "chat_request_received",
-            session_id=session_id,
+            session_id=session.id,
             message_count=len(chat_request.messages),
         )
 
         # Process the request through the LangGraph
-        result = await agent.get_response(chat_request.messages, session_id)
+        result = await agent.get_response(chat_request.messages, session.id, user_id=session.user_id)
 
-        logger.info("chat_request_processed", session_id=session_id)
+        logger.info("chat_request_processed", session_id=session.id)
 
         return ChatResponse(messages=result)
     except Exception as e:
-        logger.error("chat_request_failed", session_id=session_id, error=str(e), exc_info=True)
+        logger.error("chat_request_failed", session_id=session.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -75,14 +75,14 @@ async def chat(
 async def chat_stream(
     request: Request,
     chat_request: ChatRequest,
-    session_id: str = Depends(get_current_session),
+    session: Session = Depends(get_current_session),
 ):
     """Process a chat request using LangGraph with streaming response.
 
     Args:
         request: The FastAPI request object for rate limiting.
         chat_request: The chat request containing messages.
-        session_id: The current session ID from the auth token.
+        session: The current session from the auth token.
 
     Returns:
         StreamingResponse: A streaming response of the chat completion.
@@ -93,7 +93,7 @@ async def chat_stream(
     try:
         logger.info(
             "stream_chat_request_received",
-            session_id=session_id,
+            session_id=session.id,
             message_count=len(chat_request.messages),
         )
 
@@ -108,7 +108,9 @@ async def chat_stream(
             """
             try:
                 full_response = ""
-                async for chunk in agent.get_stream_response(chat_request.messages, session_id):
+                async for chunk in agent.get_stream_response(
+                    chat_request.messages, session.id, user_id=session.user_id
+                ):
                     full_response += chunk
                     response = StreamResponse(content=chunk, done=False)
                     yield f"data: {json.dumps(response.model_dump())}\n\n"
@@ -120,7 +122,7 @@ async def chat_stream(
             except Exception as e:
                 logger.error(
                     "stream_chat_request_failed",
-                    session_id=session_id,
+                    session_id=session.id,
                     error=str(e),
                     exc_info=True,
                 )
@@ -132,7 +134,7 @@ async def chat_stream(
     except Exception as e:
         logger.error(
             "stream_chat_request_failed",
-            session_id=session_id,
+            session_id=session.id,
             error=str(e),
             exc_info=True,
         )
@@ -143,13 +145,13 @@ async def chat_stream(
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def get_session_messages(
     request: Request,
-    session_id: str = Depends(get_current_session),
+    session: Session = Depends(get_current_session),
 ):
     """Get all messages for a session.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        session_id: The current session ID from the auth token.
+        session: The current session from the auth token.
 
     Returns:
         ChatResponse: All messages in the session.
@@ -158,10 +160,10 @@ async def get_session_messages(
         HTTPException: If there's an error retrieving the messages.
     """
     try:
-        messages = await agent.get_chat_history(session_id)
+        messages = await agent.get_chat_history(session.id)
         return ChatResponse(messages=messages)
     except Exception as e:
-        logger.error("get_messages_failed", session_id=session_id, error=str(e), exc_info=True)
+        logger.error("get_messages_failed", session_id=session.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -169,20 +171,20 @@ async def get_session_messages(
 @limiter.limit(settings.RATE_LIMIT_ENDPOINTS["messages"][0])
 async def clear_chat_history(
     request: Request,
-    session_id: str = Depends(get_current_session),
+    session: Session = Depends(get_current_session),
 ):
     """Clear all messages for a session.
 
     Args:
         request: The FastAPI request object for rate limiting.
-        session_id: The current session ID from the auth token.
+        session: The current session from the auth token.
 
     Returns:
         dict: A message indicating the chat history was cleared.
     """
     try:
-        await agent.clear_chat_history(session_id)
+        await agent.clear_chat_history(session.id)
         return {"message": "Chat history cleared successfully"}
     except Exception as e:
-        logger.error("clear_chat_history_failed", session_id=session_id, error=str(e), exc_info=True)
+        logger.error("clear_chat_history_failed", session_id=session.id, error=str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
