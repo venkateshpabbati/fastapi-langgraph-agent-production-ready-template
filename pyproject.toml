@@ -30,6 +30,8 @@ dependencies = [
     "asgiref>=3.8.1",
     "duckduckgo-search>=2025.4.4",
     "langchain-community>=0.3.20",
+    "tqdm>=4.67.1",
+    "colorama>=0.4.6",
 ]
 
 [project.optional-dependencies]

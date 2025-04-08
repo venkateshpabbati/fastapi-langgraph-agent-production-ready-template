@@ -18,3 +18,6 @@ wheels/
 
 # Misc
 *.ipynb
+
+# Reports
+evals/reports/
