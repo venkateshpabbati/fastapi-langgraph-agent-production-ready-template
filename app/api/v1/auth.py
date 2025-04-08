@@ -46,7 +46,7 @@ db_service = DatabaseService()
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = None,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> int:
     """Get the current user ID from the token.
 
@@ -59,8 +59,6 @@ async def get_current_user(
     Raises:
         HTTPException: If the token is invalid or missing.
     """
-    if credentials is None:
-        credentials = await Depends(security)
     try:
         # Sanitize token
         token = sanitize_string(credentials.credentials)
@@ -96,7 +94,7 @@ async def get_current_user(
 
 
 async def get_current_session(
-    credentials: HTTPAuthorizationCredentials = None,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> str:
     """Get the current session ID from the token.
 
@@ -109,8 +107,6 @@ async def get_current_session(
     Raises:
         HTTPException: If the token is invalid or missing.
     """
-    if credentials is None:
-        credentials = await Depends(security)
     try:
         # Sanitize token
         token = sanitize_string(credentials.credentials)
