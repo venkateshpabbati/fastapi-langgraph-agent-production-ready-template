@@ -139,7 +139,7 @@ class LangGraphAgent:
                 generated_state = {"messages": [await self.llm.ainvoke(dump_messages(messages))]}
                 logger.info(
                     "llm_response_generated",
-                    thread_id=state.thread_id,
+                    session_id=state.session_id,
                     llm_calls_num=llm_calls_num + 1,
                     model=settings.LLM_MODEL,
                     environment=settings.ENVIRONMENT.value,
@@ -228,8 +228,6 @@ class LangGraphAgent:
                 graph_builder.set_entry_point("chat")
                 graph_builder.set_finish_point("chat")
 
-                langfuse_handler = CallbackHandler()
-
                 # Get connection pool (may be None in production if DB unavailable)
                 connection_pool = await self._get_connection_pool()
                 if connection_pool:
@@ -243,7 +241,7 @@ class LangGraphAgent:
 
                 self._graph = graph_builder.compile(
                     checkpointer=checkpointer, name=f"{settings.PROJECT_NAME} Agent ({settings.ENVIRONMENT.value})"
-                ).with_config({"callbacks": [langfuse_handler]})
+                )
 
                 logger.info(
                     "graph_created",
@@ -261,52 +259,81 @@ class LangGraphAgent:
 
         return self._graph
 
-    async def get_response(self, messages: list[Message], thread_id: str) -> list[dict]:
+    async def get_response(
+        self,
+        messages: list[Message],
+        session_id: str,
+        user_id: Optional[str] = None,
+    ) -> list[dict]:
         """Get a response from the LLM.
 
         Args:
             messages (list[Message]): The messages to send to the LLM.
-            thread_id (str): The thread ID for the conversation.
+            session_id (str): The session ID for Langfuse tracking.
+            user_id (Optional[str]): The user ID for Langfuse tracking.
 
         Returns:
             list[dict]: The response from the LLM.
         """
         if self._graph is None:
             self._graph = await self.create_graph()
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": session_id},
+            "callbacks": [
+                CallbackHandler(
+                    environment=settings.ENVIRONMENT.value,
+                    debug=False,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            ],
+        }
         try:
-            response = await self._graph.ainvoke({"messages": dump_messages(messages), "thread_id": thread_id}, config)
+
+            response = await self._graph.ainvoke(
+                {"messages": dump_messages(messages), "session_id": session_id}, config
+            )
             return self.__process_messages(response["messages"])
         except Exception as e:
             logger.error(f"Error getting response: {str(e)}")
             raise e
 
-    async def get_stream_response(self, messages: list[Message], thread_id: str) -> AsyncGenerator[str, None]:
+    async def get_stream_response(
+        self, messages: list[Message], session_id: str, user_id: Optional[str] = None
+    ) -> AsyncGenerator[str, None]:
         """Get a stream response from the LLM.
 
         Args:
             messages (list[Message]): The messages to send to the LLM.
-            thread_id (str): The thread ID for the conversation.
+            session_id (str): The session ID for the conversation.
+            user_id (Optional[str]): The user ID for the conversation.
 
         Yields:
             str: Tokens of the LLM response.
         """
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": session_id},
+            "callbacks": [
+                CallbackHandler(
+                    environment=settings.ENVIRONMENT.value, debug=False, user_id=user_id, session_id=session_id
+                )
+            ],
+        }
         if self._graph is None:
             self._graph = await self.create_graph()
 
         try:
             async for token, _ in self._graph.astream(
-                {"messages": dump_messages(messages)}, config, stream_mode="messages"
+                {"messages": dump_messages(messages), "session_id": session_id}, config, stream_mode="messages"
             ):
                 try:
                     yield token.content
                 except Exception as token_error:
-                    logger.error("Error processing token", error=str(token_error), thread_id=thread_id)
+                    logger.error("Error processing token", error=str(token_error), session_id=session_id)
                     # Continue with next token even if current one fails
                     continue
         except Exception as stream_error:
-            logger.error("Error in stream processing", error=str(stream_error), thread_id=thread_id)
+            logger.error("Error in stream processing", error=str(stream_error), session_id=session_id)
             raise stream_error
 
     async def get_chat_history(self, session_id: str) -> list[Message]:
