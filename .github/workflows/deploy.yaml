@@ -21,16 +21,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y make
 
-      - name: Read project name
-        id: project_name
-        run: |
-          PROJECT_NAME=$(grep -o 'PROJECT_NAME="[^"]*"' .env.production | cut -d'"' -f2)
-          echo "project_name=${PROJECT_NAME// /-}" >> $GITHUB_OUTPUT
-
       - name: Build Image
         run: |
           make docker-build-env ENV=production
-          docker tag fastapi-langgraph-template:production ${{ secrets.DOCKER_USERNAME }}/${{ steps.project_name.outputs.project_name }}:production
+          docker tag fastapi-langgraph-template:production ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:production
 
       - name: Log in to Docker Hub
         run: |
@@ -38,7 +32,7 @@ jobs:
 
       - name: Push Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ steps.project_name.outputs.project_name }}:production
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:production
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
