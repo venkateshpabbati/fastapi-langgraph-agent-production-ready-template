@@ -168,3 +168,4 @@ Each report includes:
 The application uses a flexible configuration system with environment-specific settings:
 
 - `.env.development`
+- 
