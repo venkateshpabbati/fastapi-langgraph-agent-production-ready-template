@@ -289,7 +289,6 @@ class LangGraphAgent:
             ],
         }
         try:
-
             response = await self._graph.ainvoke(
                 {"messages": dump_messages(messages), "session_id": session_id}, config
             )
