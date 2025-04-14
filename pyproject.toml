@@ -5,6 +5,7 @@ description = "LangGraph FastAPI Template"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "bleach==6.2.0",
     "fastapi>=0.115.12",
     "langchain>=0.3.22",
     "langchain-openai>=0.3.11",

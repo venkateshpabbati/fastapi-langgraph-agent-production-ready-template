@@ -1,6 +1,7 @@
 """This file contains the chat schema for the application."""
 
 import re
+import bleach
 from typing import (
     List,
     Literal,
@@ -40,15 +41,14 @@ class Message(BaseModel):
         Raises:
             ValueError: If the content contains disallowed patterns
         """
-        # Check for potentially harmful content
-        if re.search(r"<script.*?>.*?</script>", v, re.IGNORECASE | re.DOTALL):
-            raise ValueError("Content contains potentially harmful script tags")
+        # Sanitize the content to remove potentially harmful HTML
+        sanitized_content = bleach.clean(v, tags=[], attributes={}, styles=[], strip=True)
 
         # Check for null bytes
-        if "\0" in v:
+        if "\0" in sanitized_content:
             raise ValueError("Content contains null bytes")
 
-        return v
+        return sanitized_content
 
 
 class ChatRequest(BaseModel):
